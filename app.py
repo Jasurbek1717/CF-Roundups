@@ -1,4 +1,4 @@
-﻿# -*- coding: utf-8 -*-
+# -*- coding: utf-8 -*-
 """
 CF Roundups — поиск товаров Creative Fabrica → подборки → CSV для блога.
 Поиск → Фильтры → Выбор → Экспорт. Без ИИ, без Google Sheets, без фоновых задач.
@@ -38,7 +38,7 @@ def init_state() -> None:
     ss.setdefault("result", None)
     ss.setdefault("search_id", 0)
     ss.setdefault("grid_ver", 0)
-    ss.setdefault("grid_base", None)
+    ss.setdefault("grid_rows", None)     # базовая таблица результатов поиска
     ss.setdefault("roundups", [])
     ss.setdefault("rid_counter", 0)
 
@@ -129,7 +129,7 @@ def sidebar():
 # ----------------------------------------------------------------------------
 # Вкладка «Поиск»
 # ----------------------------------------------------------------------------
-def build_grid_base(add_to: dict | None) -> None:
+def build_grid_rows(add_to: dict | None) -> None:
     ss = st.session_state
     res = ss.result
     in_rt = {it["id"] for it in add_to["items"]} if add_to else set()
@@ -153,7 +153,7 @@ def build_grid_base(add_to: dict | None) -> None:
     for col in ("Рейтинг", "Отзывы"):          # только если поле реально настроено и заполнено
         if df[col].isna().all():
             df = df.drop(columns=[col])
-    ss.grid_base = df
+    ss.grid_rows = df
 
 
 def active_roundup():
@@ -225,7 +225,7 @@ def tab_search(cfg: cs.Config, fields: tuple) -> None:
         ss.result, ss.last_type = res, type_
         ss.search_id += 1
         ss.grid_ver = 0
-        build_grid_base(active_roundup())
+        build_grid_rows(active_roundup())
 
     res = ss.result
     if res is None:
@@ -244,16 +244,16 @@ def tab_search(cfg: cs.Config, fields: tuple) -> None:
         for p in res.products:
             ss.picked[p["id"]] = p
         ss.grid_ver += 1
-        build_grid_base(active_roundup())
+        build_grid_rows(active_roundup())
         st.rerun()
     if b.button("Снять все"):
         for p in res.products:
             ss.picked.pop(p["id"], None)
         ss.grid_ver += 1
-        build_grid_base(active_roundup())
+        build_grid_rows(active_roundup())
         st.rerun()
 
-    df = ss.grid_base
+    df = ss.grid_rows
     cfgcols = {
         "Выбрано": st.column_config.CheckboxColumn(width="small"),
         "В подборке": st.column_config.CheckboxColumn(width="small"),
@@ -264,12 +264,23 @@ def tab_search(cfg: cs.Config, fields: tuple) -> None:
     edited = st.data_editor(df, key=f"grid_{ss.search_id}_{ss.grid_ver}", hide_index=True,
                             column_config=cfgcols, disabled=[x for x in df.columns if x != "Выбрано"],
                             row_height=64, height=min(64 * len(df) + 45, 760))
-    for i, flag in edited["Выбрано"].items():
-        p = res.products[i]
-        if flag:
-            ss.picked[p["id"]] = p
-        else:
-            ss.picked.pop(p["id"], None)
+    # Единственный источник истины по выбору — ss.picked. Из возвращённого data_editor
+    # DataFrame принимаются только реальные изменения галочки (edit-элементы): базовая
+    # таблица перестраивается при смене подборки, и её «редактированная» копия могла бы
+    # вернуть галочки уже снятых товаров (задвоение при добавлении в подборку).
+    sel_col = next((c for c in df.columns if str(c).startswith("Выбрано")), None)
+    if sel_col is not None:
+        try:
+            edits = edited._editor_state.get("edited_rows", {}) or {}
+        except Exception:
+            edits = {}
+        for i, ch in edits.items():
+            if sel_col in ch and int(i) < len(res.products):
+                p = res.products[int(i)]
+                if bool(ch[sel_col]):
+                    ss.picked[p["id"]] = p
+                else:
+                    ss.picked.pop(p["id"], None)
 
     rt = active_roundup()
     n_here = sum(1 for p in res.products if p["id"] in ss.picked)
@@ -288,7 +299,7 @@ def tab_search(cfg: cs.Config, fields: tuple) -> None:
             ss.picked.pop(pid, None)
         rt["ver"] += 1
         ss.grid_ver += 1
-        build_grid_base(rt)
+        build_grid_rows(rt)
         st.rerun()
 
 

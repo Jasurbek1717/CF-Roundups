@@ -42,9 +42,9 @@ def test_full_flow(monkeypatch):
     assert len(res.products) == 10 and all(p["type"] == "Graphics" for p in res.products)
 
     # имитация отметки трёх товаров в таблице
-    df = at.session_state["grid_base"].copy()
+    df = at.session_state["grid_rows"].copy()
     df.loc[[0, 1, 2], "Выбрано"] = True
-    at.session_state["grid_base"] = df
+    at.session_state["grid_rows"] = df
     at.run()
     assert len(at.session_state["picked"]) == 3
 
