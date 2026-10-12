@@ -1,6 +1,13 @@
 """Мок Algolia: каталог товаров и фальшивый requests.post (сеть не используется)."""
 import re
 
+def _to_unix(s):
+    """'YYYY-MM-DD' -> unix (UTC); чистые числа проходят как есть."""
+    if isinstance(s, str) and not s.isdigit():
+        import datetime as _dt
+        return int(_dt.datetime.strptime(s, "%Y-%m-%d").replace(tzinfo=_dt.timezone.utc).timestamp())
+    return int(s)
+
 def make_hit(i, **kw):
     h = {"objectID": f"p{i}", "name_en": f"Cat Design {i}", "url": f"/product/cat-design-{i}/",
          "image": f"https://cdn.example.com/img/{i}.jpg", "popularity": float(1000 - i),
@@ -38,6 +45,22 @@ class FakeAlgolia:
             items = CATALOG.get((rq.get("query") or "").strip('"').lower(), [])
             if rq.get("query", "") == "":
                 items = CATALOG["cat"]
+            # строковая фильтрация как у Algolia: type/category/isFree + числовые date>=/date<=
+            f = (rq.get("filters") or "").replace('""', "\x00")
+            m = re.search(r'type:"([^"]+)"', f)
+            if m:
+                items = [h for h in items if h["type"] == m.group(1).replace("\x00", '"')]
+            m = re.search(r'isFree:(true|false)', f)
+            if m:
+                items = [h for h in items if h["isFree"] == (m.group(1) == "true")]
+            m = re.search(r'date<=(\d+)', f)
+            if m:
+                hi = _to_unix(m.group(1))
+                items = [h for h in items if h["date"] <= hi]
+            m = re.search(r'date>=(\d+)', f)
+            if m:
+                lo = _to_unix(m.group(1))
+                items = [h for h in items if h["date"] >= lo]
             n = rq.get("hitsPerPage", 20); pg = rq.get("page", 0)
             chunk = items[pg * n:(pg + 1) * n]
             nb_pages = max(1, -(-len(items) // n)) if n else 1

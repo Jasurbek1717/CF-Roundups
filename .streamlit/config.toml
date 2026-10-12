@@ -1,0 +1,18 @@
+# Тема оформления CF Roundups.
+# Меняет только внешний вид (цвета/шрифты); логику приложения не трогает.
+[theme]
+base = "light"
+
+# Акцентный цвет — фирменный зелёный Creative Fabrica: кнопки, чекбоксы,
+# выделение строк таблицы, ссылки, прогресс-бары.
+primaryColor = "#00B483"
+
+# Нейтральная светлая подложка вместо дефолтного серого Streamlit.
+backgroundColor = "#FFFFFF"
+secondaryBackgroundColor = "#F4F6F8"
+textColor = "#1A2027"
+
+font = "sans-serif"
+
+[browser]
+gatherUsageStats = false

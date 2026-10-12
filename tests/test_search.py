@@ -19,7 +19,7 @@ def sp(**kw):
 # --- параметры -------------------------------------------------------------
 def test_filters_quote_and_escape():
     assert cs.build_filters("Graphics", ("Cricut", 'A "B"'), "paid") == \
-        'type:"Graphics" AND (category:"Cricut" OR category:"A \\"B\\"") AND isFree:false'
+        'type:"Graphics" AND (category:"Cricut" OR category:"A ""B""") AND isFree:false'
     assert cs.build_filters("Fonts", (), "free").endswith("isFree:true")
     assert cs.build_filters("Fonts") == 'type:"Fonts"'
 
@@ -29,10 +29,21 @@ def test_numeric_and_params():
     assert p["advancedSyntax"] is True and p["typoTolerance"] is False and p["analytics"] is False
     assert "advancedSyntax" not in cs.build_params("plain", "", [], 0, 20, strict=False)
 
-def test_requests_are_honest_no_spoofed_headers(fake):
+def test_date_filter_goes_into_filters_not_numericfilters(fake):
+    # numericFilters молча игнорируется индексом CF — дата должна попадать в filters
+    lo = 1_700_000_000 + 100 * 86400
+    r = cs.search(CFG, sp(date_from=lo, target=5))
+    rq = fake.calls[0]["json"]["requests"][0]
+    assert "numericFilters" not in rq
+    assert f"date>={lo}" in rq["filters"] and 'type:"Graphics"' in rq["filters"]
+    assert all(p["date"] >= lo for p in r.products) and len(r.products) == 5
+
+def test_requests_send_referer_no_origin(fake):
+    # Referer необходим: без него Algolia отвечает 403 (ключ ограничен по домену).
     cs.search(CFG, sp())
     h = {k.lower(): v for k, v in fake.calls[0]["headers"].items()}
-    assert "referer" not in h and "origin" not in h
+    assert h.get("referer") == "https://www.creativefabrica.com/"
+    assert "origin" not in h
     assert h["user-agent"].startswith("CFRoundupExporter")
     assert fake.calls[0]["url"].startswith("https://appid123-dsn.algolia.net")
 

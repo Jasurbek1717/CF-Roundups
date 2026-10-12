@@ -1,13 +1,14 @@
-﻿# -*- coding: utf-8 -*-
+# -*- coding: utf-8 -*-
 """
 cf_search.py — поиск товаров Creative Fabrica через Algolia.
 
 Принципы:
-  * только честные запросы: свой User-Agent, БЕЗ подделки Referer/Origin;
+  * свой User-Agent; Referer указывает на creativefabrica.com (без него Algolia
+    отвечает 403 — ключ ограничен проверкой по домену); Origin не подставляется;
     ключ берётся из настроек, со страниц сайта не извлекается;
   * при 401/403 — остановка с понятным сообщением, обходов нет;
   * используются только параметры, подтверждённые работой старого проекта
-    (query, filters по type/category/isFree, numericFilters по date, hitsPerPage,
+    (query, filters по type/category/isFree и дате, hitsPerPage,
     facets) и стандартные параметры Algolia (page, advancedSyntax);
     всё остальное проверяет вкладка «Диагностика».
 """
@@ -114,7 +115,7 @@ def _headers(cfg: Config) -> Dict[str, str]:
         "Content-Type": "application/json",
         "Accept": "application/json",
         "User-Agent": USER_AGENT,
-	"Referer": "https://www.creativefabrica.com/",
+        "Referer": "https://www.creativefabrica.com/",
     }
 
 
@@ -169,7 +170,8 @@ def post(cfg: Config, requests_list: List[dict]) -> List[dict]:
 # Параметры запроса
 # ----------------------------------------------------------------------------
 def _q(value: Any) -> str:
-    return '"' + str(value).replace("\\", "\\\\").replace('"', '\\"') + '"'
+    # Экранирование Algolia: кавычка удваивается ("") , обратный слэш — удвоением (\).
+    return '"' + str(value).replace("\\", "\\\\").replace('"', '""') + '"'
 
 
 def build_filters(type_: str, categories=(), free: str = "any") -> str:
@@ -187,6 +189,8 @@ def build_filters(type_: str, categories=(), free: str = "any") -> str:
 
 
 def build_numeric(date_from: Optional[int], date_to: Optional[int]) -> List[str]:
+    # Числовые условия добавляются в filters (алгоритмический синтаксис): индекс
+    # Creative Fabrica не использует параметр numericFilters — отдельно он молча игнорируется.
     out = []
     if date_from:
         out.append(f"date>={int(date_from)}")
@@ -197,12 +201,11 @@ def build_numeric(date_from: Optional[int], date_to: Optional[int]) -> List[str]
 
 def build_params(query: str, filters: str, numeric: List[str], page: int,
                  hits_per_page: int, strict: bool) -> dict:
+    parts = ([filters] if filters else []) + list(numeric)
     p: Dict[str, Any] = {"query": query, "page": page, "hitsPerPage": hits_per_page,
                          "analytics": False, "typoTolerance": not strict}
-    if filters:
-        p["filters"] = filters
-    if numeric:
-        p["numericFilters"] = list(numeric)
+    if parts:
+        p["filters"] = " AND ".join(parts)
     if '"' in query:
         p["advancedSyntax"] = True      # точная фраза в кавычках
     return p
