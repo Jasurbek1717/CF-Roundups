@@ -235,7 +235,10 @@ def tab_search(cfg: cs.Config, fields: tuple) -> None:
                f"убрано дублей: {res.duplicates} · отсеяно локальными фильтрами: {res.filtered_out} · "
                f"всего совпадений по запросам: {sum(res.nb_hits.values())}")
     for n in res.notes:
-        st.warning(n) if not res.exact_sort else st.info(n)
+        if res.exact_sort:
+            st.info(n)
+        else:
+            st.warning(n)
     if not res.products:
         return
 
