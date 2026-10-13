@@ -15,7 +15,11 @@ import affiliate as af
 import cf_export as ex
 import cf_search as cs
 
-st.set_page_config(page_title="CF Roundups", "assets/icon.png", layout="wide")
+st.set_page_config(
+    page_title="CF Roundups",
+    page_icon="assets/icon.png",
+    layout="wide"
+)
 
 DEFAULT_CTA = "View on Creative Fabrica"
 FREE_LABELS = {"any": "Любые", "paid": "Только платные", "free": "Только бесплатные"}
